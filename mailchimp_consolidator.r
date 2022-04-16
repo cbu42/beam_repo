@@ -26,20 +26,61 @@ getwd()
 #1. pull quarter and population from filename
 #2. 
 
-
-
-
+# OUTPUT VARIABLES
+# initialize variables for output csv filename
+df_pop <- ""
+df_quarter <- ""
+df_year <- ""
 
 raw_path <- paste0(getwd(), "/raw_data/to_be_consolidated")
 raw_file_names <- list.files(path=raw_path)
 print(raw_file_names)
 
+# cleaned_output <- data.frame(week=as.integer(), total_recipients=as.integer(),bounces= as.integer(),
+#                              unique_opens = as.integer(),open_rate = as.double(),total_opens = as.integer(),date_last_open,
+#                              unique_clicks, click_rate, total_clicks, date_last_click, unsubs) 
+# 
+# colnames(cleaned_output) <- c('week', 'total_recipients','bounces','unique_opens','open_rate','total_opens','date_last_open',
+#                               'unique_clicks', 'click_rate', 'total_clicks', 'date_last_click', 'unsubs')
 
-clean <- function(x) {
-  #TODO
+
+clean_week <- function(week_filename) {
+  week_df <- read_csv(raw_file_names[1], col_names = c("a", "b", "c"))
+  week_df <- week_df[1:20,]
+  week_df$c <- NULL
+  view(week_df)
+  c_names <- pull(week_df, 'a')
+  week_df <- t(week_df[,'b']) #we can leave a behind because we'll make that data the colnames
+  colnames(week_df) <- c_names
+  rm(c_names)
+  #print(week_df)
+  week_df <- as.data.frame(week_df)
+  colnames(week_df)<-gsub(":","",as.character(colnames(week_df)))
+  colnames(week_df)<-gsub(" ","_",as.character(colnames(week_df)))
+  
+  #week
+  for (i in 1:10) { #indexes to 10 bc we have 10 weeks in the quarter
+    if(grepl(paste0('Week ', as.character(i)),week_df$Title, fixed = TRUE)) {
+      week_df$week <- i
+    }
+  }
+
+  
+  return(week_df)
 }
-#and then we can use rbind and levels/factoring to get it in week order
 
+test <- clean_week(raw_file_names[1])
+view(test)
+
+
+#### EXPERIMENT BEGIN
+for (i in 1:length(raw_file_names)) {
+  week <- clean_week(raw_file_names[i])
+  cleaned_output <- rbind(cleaned_output,week)
+}
+cleaned_output$week = factor(cleaned_output$week, levels = c(1:10))
+
+#### EXPERIMENT OVER
 
 test <- raw_file_names[1]
 print(test)
@@ -54,54 +95,39 @@ colnames(test2) <- pull(test, 'a')
 view(test2)
 # rm(test)
 test2 <- as.data.frame(test2)
-namevec <- colnames(test2)
-view(namevec)
 colnames(test2)<-gsub(":","",as.character(colnames(test2)))
 colnames(test2)<-gsub(" ","_",as.character(colnames(test2)))
 #if(test2$Title
 
-test2$Title
-view(test2)
 
-if(grepl('Week 7',test2$Title, fixed = TRUE)) {
-  test2$week <- 7
-}
-
-ncol(test2)
-colnames(test2)
-
-# looks at a single row dataframe, pulls the week number, and adds an appropriately named week column
-for (i in 1:10) {
+#week
+for (i in 1:10) { #indexes to 10 bc we have 10 weeks in the quarter
   if(grepl(paste0('Week ', as.character(i)),test2$Title, fixed = TRUE)) {
     test2$week <- i
   }
 }
+test2$week = factor(test2$week, levels = c(1:10))
 
-# TODO: the above for quarter and population
+## PULL GLOBAL VARIABLES
 
-if(grepl('eng',test2$Title, fixed = TRUE)) {
-  test2$week <- i
-}
+#year
+df_year <- sub(".*\\'", '', test2$Title)
+df_year
 
-test2$Subject_Line
-
-view(test2)
-
-
-as.character()
-
-
-?contains()
-
-
+#population
+df_pop <- case_when(grepl("Eng", test2$Title) ~ 'eng', 
+                   grepl("H&S", test2$Title) ~ 'hs',
+                   grepl("Frosh", test2$Title) ~'fs')
+#quarter
+df_quarter <- case_when(grepl("Autumn", test2$Title) ~ 'aut', 
+                    grepl("Winter", test2$Title) ~ 'win',
+                    grepl("Spring", test2$Title) ~'spr')
 
 
-view(test2)
+output_filename <- paste0(df_pop, '_', df_quarter, df_year)
 
-
-
-?read_csv
-
+#clean_week_dfs
+cleaned_output <- rbind(hs_a20, hs_w21, hs_s21, eng_a20, eng_w21, eng_s21, fs_a20, fs_w21, fs_s21)
 
 # 
 # 
@@ -130,7 +156,7 @@ view(test2)
 # fs_a20$quarter <- "Autumn"
 # fs_w21$quarter <- "Winter"
 # fs_s21$quarter <- "Spring"
-# df$quarter = factor(df$quarter, levels = c("Autumn", "Winter", "Spring"))
+
 # 
 # 
 # #term
