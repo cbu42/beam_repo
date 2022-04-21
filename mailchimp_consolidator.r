@@ -3,28 +3,14 @@ library(tidyverse)
 library(scales)
 #Working Directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-getwd()
+print(paste0("This script (mailchimp_consolidator.r) is stored locally at: ", getwd()))
+print(paste0("Setting working directory to: ", getwd()))
 
-# OUTPUT MUST HAVE
-# week	
-# total_recipients	
-# bounces	
-# unique_opens	
-# open_rate	
-# total_opens	
-# date_last_open	
-# unique_clicks	
-# click_rate
-# total_clicks	
-# date_last_click	
-# unsubs
+raw_path <- paste0(getwd(),"/raw_data/to_be_consolidated")
+write_path <- paste0(getwd(),"/clean_data/")
+raw_file_names <- list.files(path=raw_path)
+print(raw_file_names)
 
-
-
-# df with c(filename, title, 
-
-#1. pull quarter and population from filename
-#2. 
 
 # OUTPUT VARIABLES
 # initialize variables for output csv filename
@@ -32,23 +18,45 @@ df_pop <- ""
 df_quarter <- ""
 df_year <- ""
 
-raw_path <- paste0(getwd(), "/raw_data/to_be_consolidated")
-raw_file_names <- list.files(path=raw_path)
-print(raw_file_names)
+##Initial
+test2 <- read_csv(paste0(raw_path,"/", raw_file_names[1]), col_names = c("a", "b"))
+test2 <- test2[1:20,]
+c_names <- pull(test2, 'a')
+test2 <- t(test2[,'b']) #we can leave a behind because we'll make that data the colnames
+colnames(test2) <- c_names
+rm(c_names)
+test2 <- as.data.frame(test2)
+#clean
+colnames(test2)<-gsub(":","",as.character(colnames(test2)))
+colnames(test2)<-gsub(" ","_",as.character(colnames(test2)))
+for (i in 1:10) { #indexes to 10 bc we have 10 weeks in the quarter
+  if(grepl(paste0('Week ', as.character(i)),test2$Title, fixed = TRUE)) {
+    test2$week <- i
+  }
+}
 
-# cleaned_output <- data.frame(week=as.integer(), total_recipients=as.integer(),bounces= as.integer(),
-#                              unique_opens = as.integer(),open_rate = as.double(),total_opens = as.integer(),date_last_open,
-#                              unique_clicks, click_rate, total_clicks, date_last_click, unsubs) 
-# 
-# colnames(cleaned_output) <- c('week', 'total_recipients','bounces','unique_opens','open_rate','total_opens','date_last_open',
-#                               'unique_clicks', 'click_rate', 'total_clicks', 'date_last_click', 'unsubs')
+#global vars
+#year
+df_year <- sub(".*\\'", '', test2$Title)
+#population
+df_pop <- case_when(grepl("Eng", test2$Title) ~ 'eng', 
+                    grepl("H&S", test2$Title) ~ 'hs',
+                    grepl("Frosh", test2$Title) ~'fs')
+#quarter
+df_quarter <- case_when(grepl("Autumn", test2$Title) ~ 'aut', 
+                        grepl("Winter", test2$Title) ~ 'win',
+                        grepl("Spring", test2$Title) ~'spr')
 
 
-clean_week <- function(week_filename) {
-  week_df <- read_csv(raw_file_names[1], col_names = c("a", "b", "c"))
+output_filename <- paste0(df_pop, '_', df_quarter, df_year, ".csv")
+
+#at this point, we have a transposed df with unpolished column names
+#loops that add weekly data can proceed from here
+
+test_clean <- function(filename) {
+  week_df <- read_csv(paste0(raw_path,"/", filename), col_names = c("a", "b"))
   week_df <- week_df[1:20,]
-  week_df$c <- NULL
-  view(week_df)
+  #view(week_df)
   c_names <- pull(week_df, 'a')
   week_df <- t(week_df[,'b']) #we can leave a behind because we'll make that data the colnames
   colnames(week_df) <- c_names
@@ -57,170 +65,67 @@ clean_week <- function(week_filename) {
   week_df <- as.data.frame(week_df)
   colnames(week_df)<-gsub(":","",as.character(colnames(week_df)))
   colnames(week_df)<-gsub(" ","_",as.character(colnames(week_df)))
-  
-  #week
   for (i in 1:10) { #indexes to 10 bc we have 10 weeks in the quarter
     if(grepl(paste0('Week ', as.character(i)),week_df$Title, fixed = TRUE)) {
       week_df$week <- i
     }
   }
-
-  
   return(week_df)
 }
 
-test <- clean_week(raw_file_names[1])
-view(test)
-
-
-#### EXPERIMENT BEGIN
-for (i in 1:length(raw_file_names)) {
-  week <- clean_week(raw_file_names[i])
-  cleaned_output <- rbind(cleaned_output,week)
+# MAIN FUNCTION
+for (i in 1:(length(raw_file_names)-1)) {
+  week <- test_clean(raw_file_names[i+1])
+  #print(raw_file_names[i+1])
+  #print(i)
+  #cleaned_output <- rbind(cleaned_output,week)
+  test2 <- rbind(test2,week)
+  i = i+1
 }
-cleaned_output$week = factor(cleaned_output$week, levels = c(1:10))
 
-#### EXPERIMENT OVER
+############ CLEANING
+### Drop un-needed columns
+drops <- c("Email_Campaign_Report", "Title", "Subject_Line", "Delivery_Date/Time", "Overall_Stats", "Successful_Deliveries",  
+           "Times_Forwarded", "Forwarded_Opens", "Total_Abuse_Complaints", "Times_Liked_on_Facebook", "Clicks_by_URL")
+test2 <- test2[ , !(names(test2) %in% drops)]
 
-test <- raw_file_names[1]
-print(test)
-setwd(raw_path)
-# a, b, and c are just dummy variables that won't matter soon
-test <- read_csv(raw_file_names[1], col_names = c("a", "b", "c"))
-test <- test[1:20,]
-test$c <- NULL
-view(test)
-test2 <- t(test[,'b']) #we can leave a behind because we'll make that data the colnames
-colnames(test2) <- pull(test, 'a')
-view(test2)
-# rm(test)
-test2 <- as.data.frame(test2)
-colnames(test2)<-gsub(":","",as.character(colnames(test2)))
-colnames(test2)<-gsub(" ","_",as.character(colnames(test2)))
-#if(test2$Title
+### Manipulate data types
+# week
+test2$week <- as.integer(test2$week)
+test2 <- arrange(test2, week) #sorts dataframe by week
+# total_recipients	
+#test2$total_recipients <- sub(" \\(.*", '', test2$Total_Recipients)
+test2$total_recipients <- parse_number(test2$Total_Recipients)
+test2$Total_Recipients <- NULL
+# bounces	
+test2$bounces <- parse_number(test2$Bounces)
+test2$Bounces <- NULL
+# unique_opens
+test2$unique_opens <- parse_number(test2$Recipients_Who_Opened)
+test2$Recipients_Who_Opened <- NULL
+# open_rate
+test2$open_rate <- (test2$unique_opens)/(test2$total_recipients)
+# total_opens
+test2$total_opens <- parse_number(test2$Total_Opens)
+test2$Total_Opens <- NULL
+# date_last_open
+test2$date_last_open <- as.Date.character(gsub(" .*", "", test2$Last_Open_Date), format = "%m/%d/%y")
+test2$Last_Open_Date <- NULL
+# unique_clicks
+test2$unique_clicks <- parse_number(test2$Recipients_Who_Clicked)
+test2$Recipients_Who_Clicked <- NULL
+# click_rate
+test2$click_rate <- (test2$unique_clicks)/(test2$unique_opens)
+# total_clicks
+test2$total_clicks <- parse_number(test2$Total_Clicks)
+test2$Total_Clicks <- NULL
+# date_last_click	
+test2$date_last_click <- as.Date.character(gsub(" .*", "", test2$Last_Click_Date), format = "%m/%d/%y")
+test2$Last_Click_Date <- NULL
+# unsubs
+test2$unsubs <- parse_number(test2$Total_Unsubs)
+test2$Total_Unsubs <- NULL
+
+write_csv(test2, paste0(write_path, output_filename), append = FALSE, col_names = TRUE)
 
 
-#week
-for (i in 1:10) { #indexes to 10 bc we have 10 weeks in the quarter
-  if(grepl(paste0('Week ', as.character(i)),test2$Title, fixed = TRUE)) {
-    test2$week <- i
-  }
-}
-test2$week = factor(test2$week, levels = c(1:10))
-
-## PULL GLOBAL VARIABLES
-
-#year
-df_year <- sub(".*\\'", '', test2$Title)
-df_year
-
-#population
-df_pop <- case_when(grepl("Eng", test2$Title) ~ 'eng', 
-                   grepl("H&S", test2$Title) ~ 'hs',
-                   grepl("Frosh", test2$Title) ~'fs')
-#quarter
-df_quarter <- case_when(grepl("Autumn", test2$Title) ~ 'aut', 
-                    grepl("Winter", test2$Title) ~ 'win',
-                    grepl("Spring", test2$Title) ~'spr')
-
-
-output_filename <- paste0(df_pop, '_', df_quarter, df_year)
-
-#clean_week_dfs
-cleaned_output <- rbind(hs_a20, hs_w21, hs_s21, eng_a20, eng_w21, eng_s21, fs_a20, fs_w21, fs_s21)
-
-# 
-# 
-# 
-# 
-# 
-# # Reading in data as csv files. 
-# hs_a20 <- read_csv("clean_data/hs_aut20_csv.csv")
-# hs_w21 <- read_csv("clean_data/hs_win21_csv.csv")
-# hs_s21 <- read_csv("clean_data/hs_spr21_csv.csv")
-# eng_a20 <- read_csv("clean_data/eng_aut20_csv.csv")
-# eng_w21 <- read_csv("clean_data/eng_win21_csv.csv")
-# eng_s21 <- read_csv("clean_data/eng_spr21_csv.csv")
-# fs_a20 <- read_csv("clean_data/fs_aut20_csv.csv")
-# fs_w21 <- read_csv("clean_data/fs_win21_csv.csv")
-# fs_s21 <- read_csv("clean_data/fs_spr21_csv.csv")
-# 
-# # cleaning/categorizing
-# #quarter
-# hs_a20$quarter <- "Autumn"
-# hs_w21$quarter <- "Winter"
-# hs_s21$quarter <- "Spring"
-# eng_a20$quarter <- "Autumn"
-# eng_w21$quarter <- "Winter"
-# eng_s21$quarter <- "Spring"
-# fs_a20$quarter <- "Autumn"
-# fs_w21$quarter <- "Winter"
-# fs_s21$quarter <- "Spring"
-
-# 
-# 
-# #term
-# hs_a20$term <- "aut20"
-# hs_w21$term <- "win21"
-# hs_s21$term <- "spr21"
-# eng_a20$term <- "aut20"
-# eng_w21$term <- "win21"
-# eng_s21$term <- "spr21"
-# fs_a20$term <- "aut20"
-# fs_w21$term <- "win21"
-# fs_s21$term <- "spr21"
-# #AY
-# hs_a20$academic_year <- 2021
-# hs_w21$academic_year <- 2021
-# hs_s21$academic_year <- 2021
-# eng_a20$academic_year <- 2021
-# eng_w21$academic_year <- 2021
-# eng_s21$academic_year <- 2021
-# fs_a20$academic_year <- 2021
-# fs_w21$academic_year <- 2021
-# fs_s21$academic_year <- 2021
-# 
-# #population
-# hs_a20$population <- "h&s"
-# hs_w21$population <- "h&s"
-# hs_s21$population <- "h&s"
-# eng_a20$population <- "engineering"
-# eng_w21$population <- "engineering"
-# eng_s21$population <- "engineering"
-# fs_a20$population <- "frosh/soph"
-# fs_w21$population <- "frosh/soph"
-# fs_s21$population <- "frosh/soph"
-# 
-# df <- rbind(hs_a20, hs_w21, hs_s21, eng_a20, eng_w21, eng_s21, fs_a20, fs_w21, fs_s21)
-# 
-# init_q_week <- function(df) {
-#   q <- substring(df$quarter, 1, 1)
-#   q_week <- paste0(rep(q),df$week)
-# }
-# df$q_week <- init_q_week(df)
-# alevels <- paste0(rep('A',10), c(1:10))
-# wlevels <- paste0(rep('W',10), c(1:10))
-# slevels <- paste0(rep('S',10), c(1:10))
-# qweek_levels <- append(alevels, append(wlevels, slevels, after = length(wlevels)), after = length(alevels))
-# df$q_week = factor(df$q_week, levels = qweek_levels)
-# 
-# view(df)
-# 
-# #by pop
-# eng_df <- subset(df, population=='engineering')
-# fs_df <- subset(df, population=='frosh/soph')
-# hs_df <- subset(df, population=='h&s')
-# 
-# #means
-# mean(eng_df$open_rate) #.308
-# mean(eng_df$click_rate) #.0565
-# mean(hs_df$open_rate) #.333
-# mean(hs_df$click_rate) #.0570
-# mean(fs_df$open_rate) #0.4039751
-# mean(fs_df$click_rate) #0.08682566
-# 
-# 
-# 
-# 
-# 
-# 
